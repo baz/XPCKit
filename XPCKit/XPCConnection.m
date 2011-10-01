@@ -26,11 +26,14 @@
 
 @implementation XPCConnection
 
-@synthesize eventHandler=_eventHandler, dispatchQueue=_dispatchQueue, connection=_connection;
+@synthesize eventHandler=_eventHandler, connectionInvalidHandler=_connectionInvalidHandler, dispatchQueue=_dispatchQueue, connection=_connection;
 
-- (id)initWithServiceName:(NSString *)serviceName{
+- (id)initWithServiceName:(NSString *)serviceName connectionInvalidHandler:(XPCConnectionHandler)handler{
 	xpc_connection_t connection = xpc_connection_create([serviceName cStringUsingEncoding:NSUTF8StringEncoding], NULL);
 	self = [self initWithConnection:connection];
+	if (self) {
+		self.connectionInvalidHandler = handler;
+	}
 	xpc_release(connection);
 	return self;
 }
@@ -81,10 +84,21 @@
     __block XPCConnection *this = self;
     xpc_connection_set_event_handler(connection, ^(xpc_object_t object){
         if (object == XPC_ERROR_CONNECTION_INTERRUPTED){
+			// The service has either cancaled itself, crashed, or been
+			// terminated.  The XPC connection is still valid and sending a
+			// message to it will re-launch the service.  If the service is
+			// state-full, this is the time to initialize the new service.
         }else if (object == XPC_ERROR_CONNECTION_INVALID){    
+			// The service is invalid. Either the service name supplied to
+			// xpc_connection_create() is incorrect or we (this process) have
+			// canceled the service; we can do any cleanup of appliation
+			// state at this point.
+			if (this.connectionInvalidHandler){
+				this.connectionInvalidHandler(this);
+			}
         }else if (object == XPC_ERROR_KEY_DESCRIPTION){
         }else if (object == XPC_ERROR_TERMINATION_IMMINENT){
-        }else{
+        }else if (this.eventHandler){
             id message = [NSObject objectWithXPCObject: object];
 			
 #if XPCSendLogMessages
@@ -94,9 +108,7 @@
 			}
 #endif
 			
-            if(this.eventHandler){
-                this.eventHandler(message, this);
-            }
+            this.eventHandler(message, this);
         }
     });
 }

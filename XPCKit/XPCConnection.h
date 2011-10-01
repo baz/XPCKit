@@ -26,10 +26,11 @@
 	dispatch_queue_t _dispatchQueue;
 }
 
-- (id)initWithServiceName:(NSString *)serviceName;
+- (id)initWithServiceName:(NSString *)serviceName connectionInvalidHandler:(XPCConnectionHandler)handler;
 - (id)initWithConnection: (xpc_connection_t)connection;
 
 @property (nonatomic, copy)   XPCEventHandler eventHandler;
+@property (nonatomic, copy)   XPCConnectionHandler connectionInvalidHandler;
 
 @property (nonatomic, readonly)   xpc_connection_t connection;
 @property (nonatomic, assign)     dispatch_queue_t dispatchQueue;
